@@ -1,73 +1,46 @@
+import argparse
 import hashlib
 import os
 import io
-import json
 
-def has_dupes(L):
-    seen = set()
-    result = []
-    for x in L:
-        if x in seen:
-            result.append(x)
-        seen.add(x)
-    return result
-    
 
-def hash_directory(path, outfile):
-    if os.path.exists(outfile):
-        with open(outfile, "rb") as f:
-            return json.load(f)
-
-    result = []
-    for root, directories, filenames in os.walk(path):
-        for filename in filenames: 
-            full_filename = os.path.join(root,filename)
+def hash_directory(path):
+    results = {}
+    for root, _, filenames in os.walk(path):
+        for filename in filenames:
+            full_filename = os.path.join(root, filename)
             hasher = hashlib.sha512()
             with open(full_filename, "rb") as file_data:
                 for block in iter(lambda: file_data.read(io.DEFAULT_BUFFER_SIZE), b''):
                     hasher.update(block)
-            result.append((hasher.hexdigest(), full_filename))
+            results.setdefault(hasher.hexdigest(), []).append(full_filename)
+    return results
 
-    with open(outfile, "wb") as f:
-        json.dump(result, f)
 
-    return result
+def dict_subtraction(a, b):
+    return {k: v for k, v in a.items() if k not in b}
 
-gphotos = hash_directory("./Google Photos", "GooglePhotos.json")
-gphotos_hashes = [x[0] for x in gphotos]
-gtakeout = hash_directory("./Google Takeout", "GoogleTakeout.json")
-gtakeout_hashes = [x[0] for x in gtakeout]
 
-#print has_dupes(gphotos_hashes)
-#print has_dupes(gtakeout_hashes)
+def print_differences(path, a):
+    if not len(a):
+        return
+    print("Files only in {}:".format(path))
+    for _, file_list in a.items():
+        for file_name in file_list:
+            print(file_name)
+    print()
 
-# for hash in gphotos_hashes:
-#     if hash not in gtakeout_hashes:
-#         print hash
 
-# for hash in gtakeout_hashes:
-#     if hash not in gphotos_hashes:
-#         print hash
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("DIR_A")
+    parser.add_argument("DIR_B")
+    args = parser.parse_args()
 
-gphotos_hashes_sub = [x for x in gphotos_hashes if x not in gtakeout_hashes]
-gtakeout_hashes_sub = [x for x in gtakeout_hashes if x not in gphotos_hashes]
+    # get flattened hashes for each directory
+    a = hash_directory(args.DIR_A)
+    b = hash_directory(args.DIR_B)
 
-# gphotos_sub = []
-# for hash in gphotos_hashes_sub:
-#     for x in gphotos:
-#         if x[0] == hash:
-#             gphotos_sub.append(x)
-#             break
-
-# for x in gphotos_sub:
-#     print x[1]
-
-gtakeout_sub = []
-for hash in gtakeout_hashes_sub:
-    for x in gtakeout:
-        if x[0] == hash:
-            gtakeout_sub.append(x)
-            break
-
-for x in gtakeout_sub:
-    print x[1]
+    # subtract the hashes and print results
+    print_differences(args.DIR_A, dict_subtraction(a, b))
+    print_differences(args.DIR_B, dict_subtraction(b, a))
