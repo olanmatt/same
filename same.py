@@ -8,16 +8,20 @@ from tqdm import tqdm
 
 def hash_directory(path):
     results = {}
-    for root, _, filenames in os.walk(path):
-        for filename in tqdm(
-            filenames, file=sys.stderr, desc="hashing {}".format(path)
-        ):
-            full_filename = os.path.join(root, filename)
-            hasher = hashlib.sha512()
-            with open(full_filename, "rb") as file_data:
-                for block in iter(lambda: file_data.read(io.DEFAULT_BUFFER_SIZE), b""):
-                    hasher.update(block)
-            results.setdefault(hasher.hexdigest(), []).append(full_filename)
+    filelist = [
+        os.path.join(root, filename)
+        for root, _, filenames in os.walk(path)
+        for filename in filenames
+    ]
+
+    for full_filename in tqdm(
+        filelist, file=sys.stderr, desc="hashing {}".format(path)
+    ):
+        hasher = hashlib.sha512()
+        with open(full_filename, "rb") as file_data:
+            for block in iter(lambda: file_data.read(io.DEFAULT_BUFFER_SIZE), b""):
+                hasher.update(block)
+        results.setdefault(hasher.hexdigest(), []).append(full_filename)
     return results
 
 
